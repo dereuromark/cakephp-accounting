@@ -10,11 +10,11 @@ use InvalidArgumentException;
  * Map domain categories (`revenue`, `expense`, `trade`, `vat_received`, ...)
  * to DATEV SKR03 or SKR04 account numbers.
  *
- * The plugin ships a small seed map covering the most common Freelancer and
- * Kleinvermieter cases. Applications with more exotic accounts (construction
- * reverse charge, intracommunity supplies, special investment deductions,
- * etc.) should pass their own full mapping via the `$overrides` argument —
- * the seed is explicitly a starting point, not a complete account chart.
+ * The plugin ships a small seed map covering the most common small-business
+ * cases. Applications with more exotic accounts (construction reverse charge,
+ * intracommunity supplies, special investment deductions, etc.) should pass
+ * their own full mapping via the `$overrides` argument — the seed is
+ * explicitly a starting point, not a complete account chart.
  *
  * Rate keys in the map are integer strings (`'19'`, `'7'`, `'0'`) matching
  * the VAT rate argument converted via `(int)`.

@@ -1,74 +1,180 @@
-        # Accounting Plugin for CakePHP
+# Accounting Plugin for CakePHP
 
-        [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
-        [![Minimum PHP Version](https://img.shields.io/badge/php-%3E%3D%208.3-8892BF.svg)](https://php.net/)
-        [![Status](https://img.shields.io/badge/status-0.x%20unstable-orange.svg?style=flat-square)](#status)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Minimum PHP Version](https://img.shields.io/badge/php-%3E%3D%208.3-8892BF.svg)](https://php.net/)
+[![CakePHP](https://img.shields.io/badge/cakephp-%3E%3D%205.2-red.svg?style=flat-square)](https://cakephp.org/)
+[![Status](https://img.shields.io/badge/status-0.x%20unstable-orange.svg?style=flat-square)](#status)
 
-        > **Status: 0.x unstable.** API may break before 1.0. Pin to `^0.1` in production and read the CHANGELOG before upgrading minor versions. Cut to `1.0` once the API has stabilized across two or more real consumers.
+German accounting helpers for CakePHP 5.x: §286 / §288 BGB dunning calculators and DATEV CSV export with SKR03 / SKR04 mapping.
 
-        A focused CakePHP 5.x plugin bundling two German accounting workflow primitives that virtually every DACH invoicing application needs:
+> **Status: 0.x unstable.** API may break before 1.0. Pin to `^0.1` in production and read [CHANGELOG.md](CHANGELOG.md) before upgrading. Cut to 1.0 once the API has stabilized across two or more real consumers.
 
-1. **Mahnwesen** — German dunning per §286 BGB (30-day default rule), §288 BGB Verzugszinsen (base rate + 9 pp for B2B / + 5 pp for B2C), §288 Abs. 5 Verzugspauschale (€40 flat for B2B), with a 3-stage escalation framework and a cron job that pulls the current Bundesbank base rate semi-annually.
+## What's in the box
 
-2. **DATEV Export** — DATEV "Rechnungswesen" CSV format with configurable SKR03 / SKR04 account chart mapping, for clean handoff to Steuerberater who use DATEV (which is roughly 80% of the German tax-advisor market).
+Two sub-concerns that German invoicing apps need after an invoice is issued:
 
-Both concerns live under sub-namespaces (`Accounting\\Mahnwesen`, `Accounting\\Datev`) so the merge doesn't blur the internal boundaries. Template rendering for dunning emails is behind an interface, so the polished German-language copy lives in the consuming app rather than in the plugin.
+| Sub-area | Purpose | Key classes |
+|---|---|---|
+| **Mahnwesen** | German dunning: §286 BGB default rule, §288 BGB Verzugszinsen, §288 Abs. 5 Verzugspauschale | `DunningLevelCalculator`, `InterestCalculator`, `VerzugspauschaleCalculator`, `DunningCycleRunner`, `PinnedBaseRateFetcher` |
+| **Datev** | DATEV-compatible CSV export with SKR03 / SKR04 account chart mapping | `DatevCsvBuilder`, `DatevBooking`, `SkrMapper` |
 
-        ## Features
+Each concern lives under its own sub-namespace (`Accounting\Mahnwesen\…`, `Accounting\Datev\…`) so internal boundaries stay clean.
 
-        - **Mahnwesen**: `DunningLevelCalculator` (§286 BGB 30-day default), `InterestCalculator` (§288 BGB Verzugszinsen), `VerzugspauschaleCalculator` (§288 Abs. 5 flat €40 B2B), `BaseRateFetcher` cron job, `DunningCycleRunner` queue-driven daily job.
-- **DATEV**: `DatevCsvBuilder` emitting DATEV-certified CSV (column headers, encoding, line termination are all picky), `SkrMapper` for SKR03 and SKR04 account charts, `DatevExportProfile` for per-app wiring, full audit-logged export runs.
-- Template rendering interface — polished dunning copy stays in the consuming app.
-- DATEV-Marktplatz metadata generator for listing submission.
-- Both concerns are co-versioned under one plugin.
+## Why bundled?
 
-        ## Structure
+Both concerns are workflow helpers that live between "I sent an invoice" and "my Steuerberater gets the data". They use the same `Decimal`-based arithmetic conventions, the same date/money handling, and are typically needed in the same apps. Splitting them would just force two `composer require` calls for no benefit.
 
-This plugin is internally organized into focused sub-areas under the main namespace:
+## Installation
 
-### `Accounting\Mahnwesen`
+```bash
+composer require dereuromark/cakephp-accounting
+bin/cake plugin load Accounting
+```
 
-- `Mahnwesen/Calculator/DunningLevelCalculator`
-- `Mahnwesen/Calculator/InterestCalculator`
-- `Mahnwesen/Calculator/VerzugspauschaleCalculator`
-- `Mahnwesen/Service/BaseRateFetcher`
-- `Mahnwesen/Service/DunningCycleRunner`
+Requires **PHP 8.3+** and **CakePHP 5.2+**.
 
-### `Accounting\Datev`
+## Quick start
 
-- `Datev/Export/DatevCsvBuilder`
-- `Datev/Export/SkrMapper`
-- `Datev/Export/DatevExportProfile`
-- `Datev/Service/DatevExportService`
+### Compute the current dunning level for an overdue invoice
 
+```php
+use Accounting\Mahnwesen\Calculator\DunningLevelCalculator;
+use Cake\I18n\DateTime;
 
-        ## Installation
+$calculator = new DunningLevelCalculator();
+$level = $calculator->levelFor(
+    issued: new DateTime('2026-01-01'),
+    dueDate: new DateTime('2026-01-31'),
+    now: new DateTime('2026-02-20'),
+);
+// → DunningLevel::Reminder (20 days overdue, before 1. Mahnung threshold)
+```
 
-        Install via [composer](https://getcomposer.org):
+### Compute §288 BGB Verzugszinsen
 
-        ```bash
-        composer require dereuromark/cakephp-accounting
-        bin/cake plugin load Accounting
-        ```
+```php
+use Accounting\Mahnwesen\Calculator\DebtorType;
+use Accounting\Mahnwesen\Calculator\InterestCalculator;
+use Cake\I18n\DateTime;
 
-        ## Usage
+$calculator = new InterestCalculator(baseRate: 3.62);
 
-        > This is a 0.x skeleton. Usage examples will appear here as the API stabilizes. See the `docs/` folder for architecture notes and the `tests/` folder for working examples.
+$interest = $calculator->interest(
+    principal: '1000.00',
+    debtorType: DebtorType::Business,
+    dueDate: new DateTime('2026-01-31'),
+    paidOrNow: new DateTime('2026-03-02'),
+);
+// → '10.40' (1000 × (3.62+9)% × 30/365 rounded to 2 decimals)
+```
 
-        ## Motivation
+### Compute §288 Abs. 5 Verzugspauschale
 
-        This plugin is part of a three-plugin family extracted from real DACH vertical-SaaS products (landlord billing, freelancer invoicing, Vereinsverwaltung) where German legal and tax requirements shape the architecture:
+```php
+use Accounting\Mahnwesen\Calculator\VerzugspauschaleCalculator;
 
-        - **`dereuromark/cakephp-compliance`** — GoBD retention, multi-tenant scoping, gap-free numbering, dual-approval workflows. Every-request compliance plumbing.
-        - **`dereuromark/cakephp-accounting`** — §286 / §288 BGB dunning calculators and DATEV CSV export. German accounting workflow.
-        - **`dereuromark/cakephp-sepa`** — IBAN / BIC / Creditor ID validation and CAMT.053 / CAMT.054 parsing with German bank-quirk normalization. SEPA banking primitives.
+$calculator = new VerzugspauschaleCalculator();
+$calculator->amountFor(DebtorType::Business); // '40.00'
+$calculator->amountFor(DebtorType::Consumer); // '0.00'
+```
 
-        Each plugin bundles tightly-cohesive sub-concerns under sub-namespaces so installation is one `composer require` per domain area rather than a scattershot of micro-packages.
+### Run a dunning cycle over open invoices
 
-        ## Contributing
+```php
+use Accounting\Mahnwesen\Service\{DunningCandidate, DunningCycleRunner};
 
-        PRs welcome. Please include tests, run PHPStan (`composer stan`) and PHPCS (`composer cs-check`) before submitting, and sign off commits per the DCO.
+$runner = new DunningCycleRunner(
+    new DunningLevelCalculator(),
+    new InterestCalculator(baseRate: 3.62),
+    new VerzugspauschaleCalculator(),
+);
 
-        ## License
+$candidates = [
+    new DunningCandidate(
+        id: 'invoice-1',
+        principal: '1000.00',
+        issuedAt: new DateTime('2026-01-01'),
+        dueAt: new DateTime('2026-01-31'),
+        debtorType: DebtorType::Business,
+    ),
+    // ... more candidates ...
+];
 
-        MIT. See [LICENSE](LICENSE).
+foreach ($runner->run($candidates, new DateTime()) as $assessment) {
+    if ($assessment->level === DunningLevel::None) {
+        continue;
+    }
+    $this->queueMahnungEmail($assessment);
+}
+```
+
+### Export to DATEV
+
+```php
+use Accounting\Datev\Export\{DatevBooking, DatevCsvBuilder};
+use Cake\I18n\Date;
+
+$builder = new DatevCsvBuilder(
+    consultantNumber: 1001,
+    clientNumber: 12345,
+    fiscalYearStart: new Date('2026-01-01'),
+);
+
+$bookings = [
+    new DatevBooking(
+        amount: '119.00',
+        creditDebit: 'S',
+        account: '1400',  // Forderungen
+        counterAccount: '8400', // Erlöse 19%
+        taxKey: '9',
+        date: new Date('2026-03-15'),
+        documentNumber: 'RE-2026-0001',
+        description: 'Invoice RE-2026-0001',
+    ),
+];
+
+$csv = $builder->build($bookings);
+// Hand to the Steuerberater as ISO-8859-1:
+file_put_contents('datev.csv', $builder->toLatin1($csv));
+```
+
+### Map domain categories to SKR accounts
+
+```php
+use Accounting\Datev\Export\SkrMapper;
+
+$mapper = new SkrMapper('SKR03');
+$mapper->accountFor('revenue', 19.0);  // '8400'
+$mapper->accountFor('revenue', 7.0);   // '8300'
+$mapper->accountFor('expense', 19.0);  // '4980'
+```
+
+## Documentation
+
+- [docs/Mahnwesen.md](docs/Mahnwesen.md) — §286 BGB rules, §288 BGB interest, Verzugspauschale, cycle runner, base rate handling
+- [docs/Datev.md](docs/Datev.md) — DATEV CSV format spec, SKR03 / SKR04 mapping, booking conventions
+
+## Testing
+
+```bash
+composer install
+composer test      # PHPUnit — 55 tests, no external dependencies
+composer stan      # PHPStan level 8
+composer cs-check  # PhpCollective code style
+```
+
+## Related plugins
+
+Part of a family of focused DACH-compliance plugins for CakePHP 5.x:
+
+- **`dereuromark/cakephp-compliance`** — GoBD retention, multi-tenant scoping, gap-free numbering, dual-approval.
+- **`dereuromark/cakephp-accounting`** — this plugin. German dunning + DATEV CSV export.
+- **`dereuromark/cakephp-sepa`** — IBAN / BIC / Creditor ID validation + CAMT parsing.
+
+## Contributing
+
+PRs welcome. Please include tests, run PHPStan (`composer stan`) and PHPCS (`composer cs-check`) before submitting, and sign off commits per the DCO.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
