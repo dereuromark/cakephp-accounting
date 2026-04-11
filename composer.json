@@ -1,0 +1,56 @@
+{
+    "name": "dereuromark/cakephp-accounting",
+    "description": "German accounting helpers for CakePHP 5.x: \u00a7286 / \u00a7288 BGB dunning calculators and DATEV CSV export with SKR03 / SKR04 mapping.",
+    "type": "cakephp-plugin",
+    "keywords": [
+        "cakephp",
+        "plugin",
+        "dach",
+        "compliance",
+        "germany"
+    ],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Mark Scherer",
+            "homepage": "https://www.dereuromark.de"
+        }
+    ],
+    "require": {
+        "php": ">=8.3",
+        "cakephp/cakephp": "^5.2.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.5 || ^12.1",
+        "php-collective/code-sniffer": "dev-master as 0.4.6",
+        "phpstan/phpstan": "^2.0.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Accounting\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Accounting\\Test\\": "tests/",
+            "Cake\\Test\\": "vendor/cakephp/cakephp/tests/"
+        }
+    },
+    "scripts": {
+        "check": [
+            "@cs-check",
+            "@test"
+        ],
+        "cs-check": "phpcs --colors --parallel=16",
+        "cs-fix": "phpcbf --colors --parallel=16",
+        "stan": "vendor/bin/phpstan analyze",
+        "test": "phpunit"
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
