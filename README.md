@@ -5,7 +5,7 @@
 [![CakePHP](https://img.shields.io/badge/cakephp-%3E%3D%205.2-red.svg?style=flat-square)](https://cakephp.org/)
 [![Status](https://img.shields.io/badge/status-0.x%20unstable-orange.svg?style=flat-square)](#status)
 
-German accounting helpers for CakePHP 5.x: §286 / §288 BGB dunning calculators and DATEV CSV export with SKR03 / SKR04 mapping.
+German accounting helpers for CakePHP: §286 / §288 BGB dunning calculators and DATEV CSV export with SKR03 / SKR04 mapping.
 
 > **Status: 0.x unstable.** API may break before 1.0. Pin to `^0.1` in production and read [CHANGELOG.md](CHANGELOG.md) before upgrading. Cut to 1.0 once the API has stabilized across two or more real consumers.
 
